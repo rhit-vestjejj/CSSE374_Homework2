@@ -1,0 +1,245 @@
+@startuml
+skinparam classAttributeIconSize 0
+hide circle
+
+package "Presentation Layer" {
+  class Main {
+    +{static} main(args: String[]): void
+  }
+
+  class SplendorFrame {
+    -game: Game
+    -currentPlayerLabel: JLabel = new JLabel()
+    -p1Label: JLabel = new JLabel()
+    -p2Label: JLabel = new JLabel()
+    -errorLabel: JLabel = new JLabel()
+    -leaderboardArea: JTextArea = new JTextArea(6, 18)
+    -cardsPanel: JPanel = new JPanel(new GridLayout(3, 5, 8, 8))
+    -{static} LEADERBOARD_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+    --
+    +SplendorFrame(game: Game)
+    -buildTopBar(): JPanel
+    -buildCenter(): JComponent
+    -wrapLabel(label: JLabel, title: String): JPanel
+    -buildLeaderboardPanel(): JComponent
+    -buildBottom(): JComponent
+    -onChipClicked(color: ChipColor): void
+    -onCardClicked(cardId: String): void
+    -onNewGame(): void
+    +redraw(): void
+    -playerText(idx: int): String
+    -leaderboardText(): String
+    -winnerLabel(p1Vp: int, p2Vp: int): String
+  }
+}
+
+package "Data Layer" {
+  class DomainSnapshotStore {
+    -{static} KEY: String = "game.snapshot"
+    -kv: KeyValueStore
+    --
+    +DomainSnapshotStore(kv: KeyValueStore)
+    +saveSnapshot(snapshot: String): void
+    +loadSnapshotOrNull(): String
+    +clear(): void
+  }
+
+  class FileKeyValueStore {
+    -filePath: Path
+    --
+    +FileKeyValueStore(filePath: Path)
+    +put(key: String, value: String): void
+    +getOrNull(key: String): String
+    +remove(key: String): void
+    -loadProps(): Properties
+    -saveProps(p: Properties): void
+  }
+
+  class DomainLeaderboardStore {
+    -{static} KEY: String = "game.leaderboard"
+    -kv: KeyValueStore
+    --
+    +DomainLeaderboardStore(kv: KeyValueStore)
+    +saveLeaderboard(data: String): void
+    +loadLeaderboardOrNull(): String
+  }
+
+  interface KeyValueStore {
+    ~put(key: String, value: String): void
+    ~getOrNull(key: String): String
+    ~remove(key: String): void
+  }
+
+  interface SnapshotStore {
+    ~saveSnapshot(snapshot: String): void
+    ~loadSnapshotOrNull(): String
+    ~clear(): void
+  }
+
+  interface LeaderboardStore {
+    ~saveLeaderboard(data: String): void
+    ~loadLeaderboardOrNull(): String
+  }
+}
+
+package "Domain Layer" {
+  class GameSnapshotCodec {
+    +encode(g: Game): String
+    +decode(snapshot: String, store: SnapshotStore, leaderboardStore: LeaderboardStore, leaderboard: Leaderboard): Game
+    -encodeChips(p: Player): String
+    -parsePlayerInto(p: Player, data: String): void
+    -parseTurnInto(t: TurnState, data: String): void
+    -parseBoardInto(b: Board, data: String): void
+    -parseCost(s: String): Map<ChipColor,Integer>
+  }
+
+  class Card {
+    -id: String
+    -victoryPoints: int
+    -cost: EnumMap<ChipColor, Integer>
+    --
+    +Card(id: String, victoryPoints: int, cost: Map<ChipColor,Integer>)
+    +getId(): String
+    +getVictoryPoints(): int
+    +getCost(): Map<ChipColor,Integer>
+    +costString(): String
+  }
+
+  class Leaderboard {
+    -entries: Deque<Entry> = new ArrayDeque<>()
+    --
+    +getEntries(): List<Entry>
+    +isEmpty(): boolean
+    +addEntry(player1Vp: int, player2Vp: int, timestampMillis: long): void
+    +encode(): String
+    +{static} decode(data: String): Leaderboard
+    -trimToLastFour(): void
+  }
+
+  class Entry {
+    -timestampMillis: long
+    -player1Vp: int
+    -player2Vp: int
+    --
+    +Entry(timestampMillis: long, player1Vp: int, player2Vp: int)
+    +getTimestampMillis(): long
+    +getPlayer1Vp(): int
+    +getPlayer2Vp(): int
+  }
+
+  class IllegalMoveException {
+    +IllegalMoveException(message: String)
+  }
+
+  class Player {
+    -victoryPoints: int
+    -chips: EnumMap<ChipColor, Integer> = new EnumMap<>(ChipColor.class)
+    --
+    +Player()
+    +reset(): void
+    +getVictoryPoints(): int
+    +getChips(c: ChipColor): int
+    +addChip(c: ChipColor, n: int): void
+    +spendChip(c: ChipColor, n: int): void
+    +canAfford(card: Card): boolean
+    +buy(card: Card): void
+    +setVictoryPoints(vp: int): void
+  }
+
+  class Game {
+    -board: Board = new Board()
+    -players: Player = new Player[] { new Player(), new Player() }
+    -turn: TurnState = new TurnState()
+    -store: SnapshotStore
+    -leaderboardStore: LeaderboardStore
+    -leaderboard: Leaderboard
+    -codec: GameSnapshotCodec = new GameSnapshotCodec()
+    -lastError: String = ""
+    -hasMeaningfulProgress: boolean = false
+    -gameOverRecorded: boolean = false
+    --
+    -Game(store: SnapshotStore, leaderboardStore: LeaderboardStore, leaderboard: Leaderboard)
+    ~{static} newEmpty(store: SnapshotStore, leaderboardStore: LeaderboardStore, leaderboard: Leaderboard): Game
+    +{static} loadOrNew(store: SnapshotStore, leaderboardStore: LeaderboardStore): Game
+    +startNewGame(): void
+    -startNewGameNoSave(): void
+    +takeChip(color: ChipColor): void
+    +buyCard(cardId: String): void
+    -endTurn(): void
+    -currentPlayer(): Player
+    -illegal(msg: String): IllegalMoveException
+    -saveNow(): void
+    -saveLeaderboardNow(): void
+    -recordCompletedGameIfProgress(): void
+    +getCurrentPlayerNumber(): int
+    +getBoard(): Board
+    +getPlayer(idx: int): Player
+    +getTurnState(): TurnState
+    +getLeaderboardEntries(): List<Leaderboard.Entry>
+    +getLastError(): String
+    +clearError(): void
+    -generate15Cards(): List<Card>
+    -card(id: String, vp: int, costString: String): Card
+    ~recomputeProgress(): void
+    -hasProgressFromState(): boolean
+    -markProgress(): void
+    -checkGameOverAfterMove(): void
+  }
+
+  class Board {
+    -available: List<Card> = new ArrayList<>()
+    --
+    +getAvailable(): List<Card>
+    +getCardById(id: String): Card
+    +removeCard(id: String): void
+    +resetWith15Cards(cards: List<Card>): void
+    +isEmpty(): boolean
+  }
+
+  class TurnState {
+    -currentPlayerIndex: int = 0
+    -chipsTakenThisTurn: List<ChipColor> = new ArrayList<>()
+    -choseChipAction: boolean = false
+    --
+    +getCurrentPlayerIndex(): int
+    +getChipsTakenThisTurn(): List<ChipColor>
+    +hasChoseChipAction(): boolean
+    +setCurrentPlayerIndex(idx: int): void
+    +startChipActionIfNeeded(): void
+    +recordChip(c: ChipColor): void
+    +chipsTakenCount(): int
+    +hasTakenColor(c: ChipColor): boolean
+    +resetForNextTurn(): void
+    +resetSamePlayer(): void
+    +restore(currentPlayerIndex: int, choseChipAction: boolean, chipsTaken: List<ChipColor>): void
+  }
+}
+
+DomainSnapshotStore ..|> SnapshotStore
+DomainSnapshotStore *-- KeyValueStore
+FileKeyValueStore ..|> KeyValueStore
+DomainLeaderboardStore ..|> LeaderboardStore
+DomainLeaderboardStore *-- KeyValueStore
+GameSnapshotCodec ..> Game
+GameSnapshotCodec ..> SnapshotStore
+GameSnapshotCodec ..> LeaderboardStore
+GameSnapshotCodec ..> Leaderboard
+GameSnapshotCodec ..> Player
+GameSnapshotCodec ..> TurnState
+GameSnapshotCodec ..> Board
+Leaderboard o-- Entry
+Leaderboard ..> Leaderboard
+Player ..> Card
+Game *-- Board
+Game *-- Player
+Game *-- TurnState
+Game *-- SnapshotStore
+Game *-- LeaderboardStore
+Game *-- Leaderboard
+Game *-- GameSnapshotCodec
+Game ..> Game
+Game ..> IllegalMoveException
+Game ..> Card
+Board o-- Card
+SplendorFrame *-- Game
+@enduml

@@ -1,3 +1,6 @@
+// By JP Vestjens
+
+
 package domain;
 
 public interface LeaderboardStore {

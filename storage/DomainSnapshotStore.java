@@ -1,3 +1,5 @@
+// By Ethan Spiece
+
 package storage;
 
 import domain.SnapshotStore;

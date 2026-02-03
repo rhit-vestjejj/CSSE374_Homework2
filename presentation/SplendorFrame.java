@@ -12,6 +12,7 @@ import java.util.List;
 
 public class SplendorFrame extends JFrame {
     private final Game game;
+    private boolean winDialogShown = false;
 
     private final JLabel currentPlayerLabel = new JLabel();
     private final JLabel p1Label = new JLabel();
@@ -127,6 +128,7 @@ public class SplendorFrame extends JFrame {
 
     private void onNewGame() {
         game.startNewGame();
+        winDialogShown = false;
         redraw();
     }
 
@@ -153,9 +155,33 @@ public class SplendorFrame extends JFrame {
 
         errorLabel.setText(game.getLastError());
         leaderboardArea.setText(leaderboardText());
+        showWinDialogIfNeeded();
 
         revalidate();
         repaint();
+    }
+
+    private void showWinDialogIfNeeded() {
+        if (!game.isGameOver() || winDialogShown) return;
+
+        int winner = game.getWinnerPlayerNumber();
+        String message;
+        if (winner == 1) {
+            message = "Player 1 wins!";
+        } else if (winner == 2) {
+            message = "Player 2 wins!";
+        } else {
+            message = "It's a tie!";
+        }
+
+        winDialogShown = true;
+        JOptionPane.showMessageDialog(
+                this,
+                message + " Final score: P1 " + game.getPlayer(0).getVictoryPoints()
+                        + " - P2 " + game.getPlayer(1).getVictoryPoints(),
+                "Game Over",
+                JOptionPane.INFORMATION_MESSAGE
+        );
     }
 
     private String playerText(int idx) {

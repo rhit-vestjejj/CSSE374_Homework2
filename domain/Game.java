@@ -68,6 +68,7 @@ public class Game {
 
     public void takeChip(ChipColor color) {
         clearError();
+        ensureGameNotOver();
         Player p = currentPlayer();
 
         // Rule: once you attempt chip-taking, you cannot buy this turn.
@@ -125,6 +126,7 @@ public class Game {
 
     public void buyCard(String cardId) {
         clearError();
+        ensureGameNotOver();
 
         // Rule: cannot buy if you took chips in this turn
         if (turn.hasChoseChipAction() && turn.chipsTakenCount() > 0) {
@@ -155,6 +157,12 @@ public class Game {
         return players[turn.getCurrentPlayerIndex()];
     }
 
+    private void ensureGameNotOver() {
+        if (isGameOver()) {
+            throw illegal("Game over. Start a new game to keep playing.");
+        }
+    }
+
     private IllegalMoveException illegal(String msg) {
         lastError = msg;
         return new IllegalMoveException(msg);
@@ -183,6 +191,14 @@ public class Game {
     public Player getPlayer(int idx) { return players[idx]; }
     public TurnState getTurnState() { return turn; }
     public List<Leaderboard.Entry> getLeaderboardEntries() { return leaderboard.getEntries(); }
+    public boolean isGameOver() { return board.isEmpty(); }
+    public int getWinnerPlayerNumber() {
+        int p1Vp = players[0].getVictoryPoints();
+        int p2Vp = players[1].getVictoryPoints();
+        if (p1Vp > p2Vp) return 1;
+        if (p2Vp > p1Vp) return 2;
+        return 0;
+    }
 
     public String getLastError() { return lastError == null ? "" : lastError; }
     public void clearError() { lastError = ""; }
